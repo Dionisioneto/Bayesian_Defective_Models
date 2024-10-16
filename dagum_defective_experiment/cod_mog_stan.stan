@@ -14,16 +14,14 @@ parameters {
   
 model {
   // Prioris
-  alpha ~ normal(0,10);
-  beta ~ gamma(0.001,0.001);
-  lambda ~ gamma(0.001,0.001);
+  alpha ~ normal(-1,10);
+  beta ~ gamma(0.25,0.25);
+  lambda ~ gamma(0.25,0.25);
 
-  // Definição da verossimilhança manualmente
-  real exp_term;  // Declare the variable here
 
   for (i in 1:N) {
     // Calculate exp_term for each i
-    exp_term = exp((-beta / alpha) * (exp(alpha * time[i]) - 1));
+    real exp_term = exp((-beta / alpha) * (exp(alpha * time[i]) - 1));
 
     target += delta[i] * log(lambda * beta * exp(alpha * time[i]) * exp_term) -
               delta[i] * log((1 - (1 - lambda) * exp_term)^2) +

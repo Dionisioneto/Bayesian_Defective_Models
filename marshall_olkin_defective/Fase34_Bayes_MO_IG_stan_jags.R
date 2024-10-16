@@ -94,8 +94,8 @@ gen.cure.moig = function(n,a,b,l,p){
 }
 
 
-n = 500
-a0moig=-1;b0moig=2;l0moig = 1
+n = 1000
+a0moig=-2;b0moig=10;l0moig = 2
 
 pgmoig= 1 - exp(2*a0moig/b0moig)
 p0moig=(l0moig*pgmoig)/(l0moig*pgmoig+1-pgmoig); p0moig
@@ -191,16 +191,16 @@ writeLines(cod_moig_stan, con = "cod_moig_stan.stan")
 
 data_moig = list(N = dim(dados.moig)[1], 
                time = dados.moig[,1],
-               delta = dados.moig[,2],
-               beta = b0moig,
-               lambda = l0moig)
+               delta = dados.moig[,2])
 
 ## Definindo os chutes como uma lista
-init_values = list(alpha = a0moig, beta = b0moig, lambda = l0moig)
+#init_values = list(alpha = a0moig, beta = b0moig, lambda = l0moig)
 
 ## Compilar e rodar o modelo
 moigfit = stan(file = 'cod_moig_stan.stan', data = data_moig, 
-              chains = 1, iter = 2000, warmup = 200, init = list(init_values))
+              chains = 1, iter = 2000, warmup = 200)
+              
+#, init = list(init_values))
 
 a0moig;b0moig;l0moig
 summary(moigfit)$summary

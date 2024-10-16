@@ -72,13 +72,14 @@ gen.cure.mog = function(n,a,b,l,p){
   return(cbind(t2,delta))
 }
 
-n=800
-a0mog=-1.2;b0mog=2;l0mog=2
+n=1000
+a0mog=-1.2;b0mog=2;l0mog=0.8
 pbmog=exp(b0mog/a0mog); p0mog=(l0mog*pbmog)/(l0mog*pbmog+1-pbmog)
 p0mog
 
 dados.mog = gen.cure.mog(n=n,a=a0mog,b=b0mog,l=l0mog,p=p0mog)
 
+prop.table(table(dados.mog[,2]))
 
 ## Verificando na curva de Kaplan-Meier 
 
@@ -132,16 +133,14 @@ parameters {
   
 model {
   // Prioris
-  alpha ~ normal(0,10);
-  beta ~ gamma(0.001,0.001);
-  lambda ~ gamma(0.001,0.001);
+  alpha ~ normal(-1,10);
+  beta ~ gamma(0.25,0.25);
+  lambda ~ gamma(0.25,0.25);
 
-  // Definição da verossimilhança manualmente
-  real exp_term;  // Declare the variable here
 
   for (i in 1:N) {
     // Calculate exp_term for each i
-    exp_term = exp((-beta / alpha) * (exp(alpha * time[i]) - 1));
+    real exp_term = exp((-beta / alpha) * (exp(alpha * time[i]) - 1));
 
     target += delta[i] * log(lambda * beta * exp(alpha * time[i]) * exp_term) -
               delta[i] * log((1 - (1 - lambda) * exp_term)^2) +
@@ -152,8 +151,6 @@ model {
 "
 
 
-
-
 ## Transcrever o código escrito para um file stan 
 writeLines(cod_mog_stan, con = "cod_mog_stan.stan")
 
@@ -162,15 +159,14 @@ writeLines(cod_mog_stan, con = "cod_mog_stan.stan")
 
 data_mog = list(N = dim(dados.mog)[1],
                 time = dados.mog[,1],
-                delta = dados.mog[,2],
-                lambda=l0mog)
+                delta = dados.mog[,2])
 
 
 ## Compilar e rodar o modelo
 
 ## Compilar e rodar o modelo
 mogfit = stan(file = 'cod_mog_stan.stan', data = data_mog, 
-            chains = 1, iter = 2000, warmup = 200)
+            chains = 1, iter = 10000, warmup = 1000)
 
 a0mog;b0mog;l0mog
 mogfit
@@ -183,17 +179,16 @@ plot(mogfit_post_samples$alpha, type='l')
 abline(h=a0mog,col="red", lwd=2)
 
 plot(mogfit_post_samples$beta, type='l')
-
 abline(h=b0mog,col="red", lwd=2)
 
 plot(mogfit_post_samples$lambda, type='l')
 abline(h=l0mog,col="red", lwd=2)
 
+
 ## estimativas pontuais
 mean_alphamog = mean(mogfit_post_samples$alpha)
 mean_betamog = mean(mogfit_post_samples$beta)
 mean_lambdamog= mean(mogfit_post_samples$lambda)
-
 
 ## Verificando a curva de Kaplan-Meier
 survival_object = Surv(dados.mog[,1], dados.mog[,2])
