@@ -73,7 +73,7 @@ gen.cure.mog = function(n,a,b,l,p){
 }
 
 n=1000
-a0mog=-1.2;b0mog=2;l0mog=0.8
+a0mog=-3;b0mog=4;l0mog=2
 pbmog=exp(b0mog/a0mog); p0mog=(l0mog*pbmog)/(l0mog*pbmog+1-pbmog)
 p0mog
 

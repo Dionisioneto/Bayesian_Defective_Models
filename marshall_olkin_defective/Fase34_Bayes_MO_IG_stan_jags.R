@@ -151,9 +151,9 @@ cod_moig_stan = "
   
   model {
     
-    alpha~normal(0,10);
-    beta~gamma(0.001,0.001);
-    lambda~gamma(0.001,0.001);
+    alpha~normal(-1,10);
+    beta~gamma(0.25,0.25);
+    lambda~gamma(0.25,0.25);
     
     // Definição manual da função de verossimilhança
     for (i in 1:N) {
@@ -198,7 +198,7 @@ data_moig = list(N = dim(dados.moig)[1],
 
 ## Compilar e rodar o modelo
 moigfit = stan(file = 'cod_moig_stan.stan', data = data_moig, 
-              chains = 1, iter = 2000, warmup = 200)
+              chains = 1, iter = 10000, warmup = 1000)
               
 #, init = list(init_values))
 
