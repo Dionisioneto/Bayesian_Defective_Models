@@ -80,17 +80,19 @@ gen.cure.kgz = function(n,a,b,k,ps,p){
   return(cbind(t2,delta))
 }
 
-n=800
-a0kg=-1.25
-b0kg=1
-psi0kg=2
-k0kg=2
+n=5000
+a0kg=-2
+b0kg=10
+psi0kg=1.2
+k0kg=0.5
 
 pgkg = exp(b0kg/a0kg)
 p0kg = (1-(1-pgkg)^psi0kg)^k0kg; p0kg
 
 dados.kgz=gen.cure.kgz(n=n,a=a0kg,b=b0kg,k=k0kg,ps=psi0kg,p=p0kg)
-head(dados.kgz)
+#head(dados.kgz)
+
+1-mean(dados.kgz[,2])
 
 ## Verificando na curva de Kaplan-Meier 
 
@@ -140,7 +142,7 @@ cod_kgtz_stan = "
   // prioris
   
   alpha ~ normal(-1,10);
-  beta ~ gamma(0.001,0.001);
+  beta ~ gamma(0.25,0.25);
   kappa ~ gamma(0.25,0.25);
   psi ~ gamma(0.25,0.25);
   
@@ -157,7 +159,6 @@ cod_kgtz_stan = "
 writeLines(cod_kgtz_stan, con = "cod_kgtz_stan.stan")
 
 
-
 ## Organizando os dados [data list]
 #dados.kgz
 
@@ -170,13 +171,8 @@ data_kgz = list(N = dim(dados.kgz)[1],
 kgzfit = stan(file = 'cod_kgtz_stan.stan', data = data_kgz, 
                chains = 1, iter = 2000, warmup = 200)
 
-a0kg;b0kg;psi0kg;k0kg
-summary(kgzfit)$summary
-
-
-
+ 
 kgzfit_post_samples = extract(kgzfit)
-
 
 plot(kgzfit_post_samples$alpha, type='l')
 abline(h=a0kg,col="red", lwd=2)
@@ -188,15 +184,58 @@ plot(kgzfit_post_samples$psi, type='l')
 abline(h=psi0kg,col="red", lwd=2)
 
 plot(kgzfit_post_samples$kappa, type='l')
-abline(h=psi0kg,col="red", lwd=2)
+abline(h=k0kg,col="red", lwd=2)
+
+
+# acf(kgzfit_post_samples$alpha)
+# acf(kgzfit_post_samples$beta)
+# acf(kgzfit_post_samples$psi)
+# acf(kgzfit_post_samples$kappa)
 
 ## estimativas pontuais
-# mean_alpha = mean(mogfit_post_samples$alpha)
-# mean_beta = mean(mogfit_post_samples$beta)
-# mean_lambda= mean(mogfit_post_samples$lambda)
+## para a configuração de prioris não informativas
+## alpha ~ normal(-1,10);
+## beta ~ gamma(0.25,0.25);
+## kappa ~ gamma(0.25,0.25);
+## psi ~ gamma(0.25,0.25);
+## A estimação pontual pela mediana esyá bem melhor que a média.
+
+mean_alpha = median(kgzfit_post_samples$alpha)
+mean_beta = median(kgzfit_post_samples$beta)
+mean_psi = median(kgzfit_post_samples$psi)
+mean_kappa = median(kgzfit_post_samples$kappa)
+
+a0kg;b0kg;psi0kg;k0kg
+summary(kgzfit)$summary
+
+
+plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
+     main = "Curva de Kaplan-Meier", conf.int = F)
+
+median(kgzfit_post_samples$beta)
+a0kg;b0kg;psi0kg;k0kg
+mean_alpha;mean_beta;mean_kappa;mean_psi
+
+t_grid = seq(0,100,by=0.01)
+st_t_est = st_Kgompertz(t=t_grid,alpha=mean_alpha,
+                         beta=mean_beta,kappa=mean_kappa,psi=mean_psi)
+
+# st_t_est  = st_Kgompertz(t=t_grid,alpha=a0kg,
+#                          beta=b0kg,kappa=k0kg,psi=psi0kg)
+
+lines(t_grid,st_t_est, lwd=2, col = "deeppink")
 
 
 
+
+fc_base_est = exp(mean_beta/mean_alpha)
+fc_est = (1-(1-fc_base_est)^mean_psi)^mean_kappa
+
+abline(h=fc_est, lwd=2, col='steelblue')
+  
+pgkg = exp(b0kg/a0kg)
+p0kg = (1-(1-pgkg)^psi0kg)^k0kg; p0kg
+  
 
 
 

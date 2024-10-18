@@ -85,10 +85,10 @@ gen.cure.kig = function(n,a,b,k,ps,p){
   return(cbind(t2,delta))
 }
 
-n=800
-a0kig=-0.25
-b0kig=1
-psi0kig=2
+n=2000
+a0kig=-0.2
+b0kig=2
+psi0kig=2.2
 k0kig=2
 
 pbkig = 1 - exp(2*a0kig/b0kig)
@@ -96,6 +96,7 @@ p0kig = (1-(1-pbkig)^psi0kig)^k0kig; p0kig
 
 dados.kig = gen.cure.kig(n=n,a=a0kig,b=b0kig,k=k0kig,ps=psi0kig,p=p0kig)
 
+1-mean(dados.kig[,2])
 
 ## Verificando na curva de Kaplan-Meier 
 
@@ -107,7 +108,7 @@ plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
      main = "Curva de Kaplan-Meier", conf.int = F)
 
 
-t_grid = seq(0,100,by=0.01)
+t_grid = seq(0,400,by=0.01)
 st_t_grid = st_KIG(t=t_grid,alpha=a0kig,beta=b0kig,
                    kappa=k0kig,psi=psi0kig)
 
@@ -124,10 +125,10 @@ abline(h=p0kig, lwd=2, col='steelblue')
 ## Portanto, no objeto dados.IG, temos os dados do tempo de falha e o indicador de censura.
 
 ## Com o código feito, vamos estudar o estudo de prioris 
-## alpha ~ Normal(mu0<0,sigma20 grande); não ter uma média mu0<0, afeta a estimação.
-## beta~gamma(0.001,0.001); 
-## lambda~gamma(0.25,0.25);
-## lambda~gamma(0.25,0.25);
+# alpha ~ normal(-1,10);
+# beta ~ gamma(0.25,0.25);
+# kappa ~ gamma(0.25,0.25);
+# psi ~ gamma(0.25,0.25);
 
 cod_KIG_stan = "
   data {
@@ -146,8 +147,8 @@ cod_KIG_stan = "
   model {
     // prioris
   
-  alpha ~ normal(0,10);
-  beta ~ gamma(0.001,0.001);
+  alpha ~ normal(-1,10);
+  beta ~ gamma(0.25,0.25);
   kappa ~ gamma(0.25,0.25);
   psi ~ gamma(0.25,0.25);
     
@@ -181,10 +182,12 @@ data_kig = list(N = dim(dados.kig)[1],
                time = dados.kig[,1],
                delta = dados.kig[,2])
 
+## chutes iniciais
+init_vals = list(list(alpha = -0.5, beta = 0.5, kappa = 0.5, psi = 0.5))
 
 ## Compilar e rodar o modelo
 kigfit = stan(file = 'cod_KIG_stan.stan', data = data_kig, 
-              chains = 1, iter = 2000, warmup = 200)
+              chains = 1, iter = 2000, warmup = 200, init = init_vals)
 
 a0kig;b0kig;psi0kig;k0kig
 summary(kigfit)$summary
@@ -206,10 +209,44 @@ plot(kigfit_post_samples$kappa, type='l')
 abline(h=k0kig,col="red", lwd=2)
 
 ## verificar as correlações
-acf(kigfit_post_samples$alpha)
-acf(kigfit_post_samples$beta)
-acf(kigfit_post_samples$psi)
-acf(kigfit_post_samples$kappa)
+# acf(kigfit_post_samples$alpha)
+# acf(kigfit_post_samples$beta)
+# acf(kigfit_post_samples$psi)
+# acf(kigfit_post_samples$kappa)
+
+
+survival_object = Surv(dados.kig[,1], dados.kig[,2])
+km_fit = survfit(survival_object ~ 1)
+
+
+plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
+     main = "Curva de Kaplan-Meier", conf.int = F)
+
+
+t_grid = seq(0,400,by=0.01)
+st_t_est = st_KIG(t=t_grid,
+                   alpha=mean(kigfit_post_samples$alpha),
+                   beta=mean(kigfit_post_samples$beta),
+                   kappa=mean(kigfit_post_samples$kappa),
+                   psi=mean(kigfit_post_samples$psi))
+
+pbkig_est = 1 - exp(2*mean(kigfit_post_samples$alpha)/mean(kigfit_post_samples$beta))
+p0kig_est = (1-(1-pbkig_est)^mean(kigfit_post_samples$psi))^mean(kigfit_post_samples$kappa);
+
+
+lines(t_grid,st_t_est, lwd=2, col = "deeppink")
+abline(h=p0kig_est, lwd=2, col='steelblue')
+
+
+
+plot(dgamma(x=seq(0,100,0.1), shape = 0.25, rate = 0.25),type='l')
+
+
+
+
+
+
+
 
 
 
