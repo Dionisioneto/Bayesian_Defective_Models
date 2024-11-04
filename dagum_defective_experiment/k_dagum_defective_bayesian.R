@@ -98,6 +98,9 @@ pbase = 1-th0; p0 = (1-(1-pbase)^r0)^u0; p0
 dados.kdagum = gen.cure.kdagum(n=n,a=a0,b=b0,th=th0,u=u0,r=r0,p=p0)
 #View(dados.kdagum)
 
+
+
+
 ## ---
 ## Estimação via stan
 ## ---

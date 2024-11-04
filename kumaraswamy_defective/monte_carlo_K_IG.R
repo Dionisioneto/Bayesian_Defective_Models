@@ -9,15 +9,14 @@
 # Functions and packages
 # ----
 
-library(pacman)
-p_load(survival,rstan, R2jags)
+library(rstan)
 source("https://raw.githubusercontent.com/Dionisioneto/Bayesian_Defective_Models/refs/heads/master/kumaraswamy_defective/Kumaraswamy_funcoes_e_geracao.R")
 
 cod_KIG_stan = "
   data {
-    int<lower=0> N;                        // tamanho amostral
+    int<lower=0> N;                         // tamanho amostral
     vector[N] time;                        // tempo de falha observado
-     array[N] int<lower=0, upper=1> delta;        // indicador do evento
+    vector[N] delta;                      // indicador do evento
   }
 
   parameters {
@@ -31,9 +30,9 @@ cod_KIG_stan = "
     // prioris
   
   alpha ~ normal(-1,10);
-  beta ~ gamma(0.25,0.25);
-  kappa ~ gamma(0.25,0.25);
-  psi ~ gamma(0.25,0.25);
+  beta ~ gamma(0.1,0.1);
+  kappa ~ gamma(0.1,0.1);
+  psi ~ gamma(0.1,0.1);
     
     for (i in 1:N) {
       real z1 = (-1 + alpha * time[i]) / sqrt(beta * time[i]);
@@ -66,6 +65,41 @@ writeLines(cod_KIG_stan, con = "cod_KIG_stan.stan")
 
 bias = function(true,est){(est-true)/true*100}
 
+
+## Tabelas e informações
+
+n.replicas = 500
+## colunas: a média a posteriori, desvio padrão a posteriori, bias, coverage  
+ncols_mc = 4
+ncols_mc_medidas = 4
+
+n_amostral = c(50, 100, 1000, 10000)
+
+kig_mc_alpha = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                     dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kig_mc_beta = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                    dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kig_mc_psi = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                   dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kig_mc_kappa = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                     dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+
+## colunas: 4 valores do effective sample size (n_eff)
+kig_mc_eff = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                   dimnames = list(1:n.replicas,c("alpha", "beta", "psi","kappa", "lp"),n_amostral))
+
+## colunas: 4 valores do Rhat
+kig_mc_Rhat = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                    dimnames = list(1:n.replicas,c("alpha", "beta", "psi","kappa", "lp"),n_amostral))
+
+## Censura
+
+kig_mc_cens = array(data=0, dim = c(n.replicas, 1, length(n_amostral)))
+
 ## ---
 ## Scenarios: 
 ## ---
@@ -73,48 +107,10 @@ bias = function(true,est){(est-true)/true*100}
 # segundo: Alpha = -1, Beta = 10, psi = 1.4, kappa = 0.6.
 
 
-
-n.replicas = 20
-## colunas: a média a posteriori, desvio padrão a posteriori, bias, coverage  
-ncols_mc = 4
-ncols_mc_medidas = 4
-#n_amostral = c(50, 100, 1000, 10000)
-n_amostral = 100
-
-kig_mc_alpha = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kig_mc_beta = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kig_mc_psi = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kig_mc_kappa = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-
-
-## colunas: 4 valores do effective sample size (n_eff)
-kig_mc_eff = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-
-## colunas: 4 valores do Rhat
-kig_mc_Rhat = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-
-## Censura
-
-kig_mc_cens = array(data=0, dim = c(n.replicas, 1, length(n_amostral)))
-
-
 a0kig=-0.20; b0kig=2; psi0kig=2.2; k0kig=2
 
 pbkig = 1 - exp(2*a0kig/b0kig)
 p0kig = (1-(1-pbkig)^psi0kig)^k0kig; p0kig
-
-## cutes de valores inicias aleatórios
-# init_fun = function() {
-#   list(alpha = runif(1, -2.55,-2), 
-#        beta = runif(1, 9,11), 
-#        psi = runif(1, 1,2),
-#       kappa = runif(1, 0,1))
-# }
-
-# init_val = list(list(alpha = -1, 
-#                      beta = 1, 
-#                      psi = 1,
-#                      kappa = 1))
 
 
 
@@ -130,7 +126,7 @@ for(j in 1:length(n_amostral)){
     
     ## Compilar e rodar o modelo
     kigfit = stan(file = 'cod_KIG_stan.stan', data = data_kig, 
-                 chains = 1, iter = 1000, warmup = 100)
+                 chains = 1, iter = 8000, warmup = 1000)
     
     kigfit_post_samples = extract(kigfit)
     mean_alpha = mean(kigfit_post_samples$alpha); sd_alpha = sd(kigfit_post_samples$alpha)
@@ -163,22 +159,34 @@ for(j in 1:length(n_amostral)){
     
     ## salvando o percentual censura dos dados
     kig_mc_cens[i,1,j] = 1-(sum(dados.kig[,2])/n_amostral[j])
+    
+    ## Salvando os resultados em um arquivo .csv
+    if(i==n.replicas){
+      write.csv2(kig_mc_alpha[,,j], file = paste("resumos/","kig_mc_alpha_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_beta[,,j], file = paste("resumos/","kig_mc_beta_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_psi[,,j], file = paste("resumos/","kig_mc_psi_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_kappa[,,j], file = paste("resumos/","kig_mc_kappa_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_eff[,,j], file = paste("resumos/","kig_mc_eff_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_Rhat[,,j], file = paste("resumos/","kig_mc_Rhat_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kig_mc_cens[,,j], file = paste("resumos/","kig_mc_cens_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      
+    }
   }
 }
 
-kig_mc_alpha
-kig_mc_beta
-kig_mc_psi
-kig_mc_kappa
-
-kig_mc_eff
-kig_mc_Rhat
-
-a0kig; b0kig; psi0kig; k0kig
-colMeans(kig_mc_alpha)
-colMeans(kig_mc_beta)
-colMeans(kig_mc_psi)
-colMeans(kig_mc_kappa)
+# kig_mc_alpha
+# kig_mc_beta
+# kig_mc_psi
+# kig_mc_kappa
+# 
+# kig_mc_eff
+# kig_mc_Rhat
+# 
+# a0kig; b0kig; psi0kig; k0kig
+# colMeans(kig_mc_alpha)
+# colMeans(kig_mc_beta)
+# colMeans(kig_mc_psi)
+# colMeans(kig_mc_kappa)
 
 
 

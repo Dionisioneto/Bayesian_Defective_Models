@@ -15,7 +15,7 @@
   model {
     // prioris
   
-  alpha ~ normal(0,10);
+  alpha ~ normal(-1,10);
   beta ~ gamma(0.25,0.25);
   kappa ~ gamma(0.25,0.25);
   psi ~ gamma(0.25,0.25);

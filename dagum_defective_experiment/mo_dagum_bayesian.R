@@ -82,16 +82,33 @@ gen.cure.modagum = function(n,a,b,th,lb,p){
 
 
 
-n=1000
-a0=0.8
-b0=1.5
-th0=0.45
-l0=0.5
+n=2000
+a0=2
+b0=5
+th0=0.7 ## Entre 0 e 1
+l0=1.2
 
 pbase = 1-th0; p0 = (l0*pbase)/(l0*pbase + 1 - pbase); p0
 
 dados.modagum = gen.cure.modagum(n=n,a=a0,b=b0,th=th0,lb=l0,p=p0)
-#View(dados.modagum)
+
+# Verificando na curva de Kaplan-Meier 
+
+surv_obj = Surv(dados.modagum[,1], dados.modagum[,2])
+km_fit = survfit(surv_obj  ~ 1)
+
+par(mfrow=c(1,1))
+plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
+     main = "Curva de Kaplan-Meier", conf.int = F)
+
+
+t_grid = seq(0,100,by=0.01)
+st_modagum_t_grid = st_modagum(t=t_grid,alpha=a0,beta=b0,theta=th0,lambda=l0)
+
+
+lines(t_grid,st_modagum_t_grid, lwd=2, col = "deeppink")
+abline(h=p0, lwd=2, col='steelblue')
+
 
 
 ## Estimação via stan
@@ -113,10 +130,10 @@ cod_modagum = "
 
   model {
   // Prioris
-  alpha ~ gamma(0.01,0.01);
-  beta ~ gamma(0.25,0.25);
+  alpha ~ gamma(0.1,0.1);
+  beta ~ gamma(0.1,0.1);
   theta ~ beta(1,1);
-  lambda ~ gamma(0.25,0.25);
+  lambda ~ gamma(0.1,0.1);
 
   // Definição manual da log-verossimilhança
   for (i in 1:N){
@@ -130,58 +147,6 @@ cod_modagum = "
 }
 
 "
-
-## log-verossimilhanca - Marshall-Olkin Dagum
-
-# denom = lambda + (((1-lambda)*theta*beta)/(beta + theta*time[i]^(-alpha)))
-# 
-# delta[i]*log(lambda*alpha*beta*theta^2*time^(-alpha-1)) -
-#   delta[i]*log((beta+theta*time[i]^(-alpha))^2 * denom^2) +
-#   (1-delta[i])*log(lambda*(1 - (theta*beta)/(beta+theta*t^(-alpha)))) -
-#   (1-delta[i])*log(denom)
-
-
-
-
-# cog_modagum2 = "
-# 
-# data {
-#   int<lower=0> N;                         // Tamanho amostral
-#   array[N] real time;                      // Tempo de falha observado
-#   array[N] int<lower=0, upper=1> delta;    // Indicador do evento
-# }
-# 
-# parameters {
-#   real alpha0;              // alpha0 = log(alpha)
-#   real beta0;               // beta0 = log(beta)
-#   real theta0;              // theta0 = log(theta/(1-theta))
-#   real<lower=0> lambda0;     // lambda0 = log(lambda)
-# }
-# 
-# transformed parameters {
-#   real<lower=0> alpha = exp(alpha0);                // Inversa da transformação logarítmica
-#   real<lower=0> beta = exp(beta0);                  // Inversa da transformação logarítmica
-#   real<lower=0, upper=1> theta = inv_logit(theta0); // Inversa da transformação logístico (para restringir a [0,1])
-#   real<lower=0> lambda = exp(lambda0)
-# }
-# 
-# model {
-#   // Prioris no espaço transformado
-#   alpha0 ~ normal(0, 10);  // Log(alpha)
-#   beta0 ~ normal(0, 10);   // Log(beta)
-#   theta0 ~ normal(0, 10);  // Logit(theta) (transformação de Beta(1,1) para logit normal)
-#   lambda0 ~ normal(0, 10);
-# 
-#   // Definição manual da log-verossimilhança
-#   for (i in 1:N) {
-#     real F1 = 1 - (theta * beta / (beta + theta * time[i]^(-alpha)));
-#     
-#     target += delta[i] * log((lambda * alpha * beta * theta^2 * time[i]^(-alpha-1)) / (beta + theta * time[i]^(-alpha))^2 * (1 - (1 - lambda) * F1)^(-1)) 
-#               + (1 - delta[i]) * log(lambda * F1 / (1 - (1 - lambda) * F1));
-#   }
-# }
-# 
-# "
 
 ## Transcrever o código escrito para um file stan 
 writeLines(cod_modagum, con = "cod_modagum.stan")
@@ -200,12 +165,10 @@ modagum = stan(file = 'cod_modagum.stan', data = data_cod_modagum,
 
 
 
-a0;b0;th0;l0
-summary(modagum)$summary
-
+# a0;b0;th0;l0
+# summary(modagum)$summary
 
 modagum_post_samples = extract(modagum)
-
 
 plot(modagum_post_samples$alpha, type='l')
 abline(h=a0,col="red", lwd=2)
@@ -218,5 +181,36 @@ abline(h=th0,col="red", lwd=2)
 
 plot(modagum_post_samples$lambda, type='l')
 abline(h=th0,col="red", lwd=2)
+
+a0;b0;th0;l0
+summary(modagum)$summary
+
+
+
+
+fbaseest_modagum = 1-mean(modagum_post_samples$theta); 
+fc_est_modgaum = (mean(modagum_post_samples$lambda)*fbaseest_modagum)/(mean(modagum_post_samples$lambda)*fbaseest_modagum + 1 - fbaseest_modagum)
+
+fc_est_modgaum
+
+t_grid = seq(0,100,by=0.01)
+
+surv_est_modagum = st_modagum(t=t_grid,
+                   alpha = mean(modagum_post_samples$alpha),
+                   beta=mean(modagum_post_samples$beta),
+                   theta = mean(modagum_post_samples$theta),
+                   lambda = mean(modagum_post_samples$lambda))
+
+
+plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
+     main = "Curva de Kaplan-Meier", conf.int = F)
+
+
+t_grid = seq(0,100,by=0.01)
+
+lines(t_grid,surv_est_modagum, lwd=2, col = "deeppink")
+abline(h=fc_est_modgaum, lwd=2, col='steelblue')
+
+
 
 

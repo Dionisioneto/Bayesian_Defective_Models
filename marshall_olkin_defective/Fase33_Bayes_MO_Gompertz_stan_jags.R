@@ -72,7 +72,7 @@ gen.cure.mog = function(n,a,b,l,p){
   return(cbind(t2,delta))
 }
 
-n=1000
+n=2000
 a0mog=-3;b0mog=4;l0mog=2
 pbmog=exp(b0mog/a0mog); p0mog=(l0mog*pbmog)/(l0mog*pbmog+1-pbmog)
 p0mog
@@ -166,7 +166,7 @@ data_mog = list(N = dim(dados.mog)[1],
 
 ## Compilar e rodar o modelo
 mogfit = stan(file = 'cod_mog_stan.stan', data = data_mog, 
-            chains = 1, iter = 10000, warmup = 1000)
+            chains = 1, iter = 8000, warmup = 1000)
 
 a0mog;b0mog;l0mog
 mogfit
@@ -174,16 +174,18 @@ mogfit
 
 mogfit_post_samples = extract(mogfit)
 
-
-plot(mogfit_post_samples$alpha, type='l')
+par(mfrow = c(1, 3))
+plot(mogfit_post_samples$alpha, type='l', ylab = "Alpha")
 abline(h=a0mog,col="red", lwd=2)
 
-plot(mogfit_post_samples$beta, type='l')
+plot(mogfit_post_samples$beta, type='l', ylab = "Beta")
 abline(h=b0mog,col="red", lwd=2)
 
-plot(mogfit_post_samples$lambda, type='l')
+plot(mogfit_post_samples$lambda, type='l', ylab = "Lambda")
 abline(h=l0mog,col="red", lwd=2)
 
+
+par(mfrow = c(1, 1))
 
 ## estimativas pontuais
 mean_alphamog = mean(mogfit_post_samples$alpha)
@@ -205,6 +207,9 @@ fc_base = exp(mean_betamog/mean_alphamog)
 fc_mog = (mean_lambdamog*fc_base)/(mean_lambdamog*fc_base+1-fc_base);fc_mog
 
 abline(h=fc_mog,lwd=2,col="red")
+
+text(x = 2.1, y = fc_mog - 0.05, 
+     labels = bquote(hat(p) == .(round(fc_mog, 4))))
 
 
 

@@ -14,12 +14,12 @@
 
   model {
     // prioris
-  
-  alpha ~ normal(0,10);
-  beta ~ gamma(0.001,0.001);
-  kappa ~ gamma(0.25,0.25);
-  psi ~ gamma(0.25,0.25);
-    
+
+  alpha ~ normal(-1,10);
+  beta ~ gamma(0.01,0.01);
+  kappa ~ gamma(0.1,0.1);
+  psi ~ gamma(0.01,0.1);
+
     for (i in 1:N) {
       real z1 = (-1 + alpha * time[i]) / sqrt(beta * time[i]);
       real z2 = (-1 - alpha * time[i]) / sqrt(beta * time[i]);

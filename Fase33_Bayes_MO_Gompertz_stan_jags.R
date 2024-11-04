@@ -28,7 +28,7 @@ Ft_Gompertz = function(t,alpha,beta){
 }
 
 ft_Gompertz = function(t,alpha,beta){
-  ft = beta*exp(alpha*beta)*exp(-(beta/alpha)*(exp(alpha*t)-1))
+  ft = beta*exp(alpha*t)*exp(-(beta/alpha)*(exp(alpha*t)-1))
   return(ft)
 }
 
@@ -72,7 +72,7 @@ gen.cure.mog = function(n,a,b,l,p){
   return(cbind(t2,delta))
 }
 
-n=500
+n=800
 a0mog=-1;b0mog=1.5;l0mog=2
 pbmog=exp(b0mog/a0mog); p0mog=(l0mog*pbmog)/(l0mog*pbmog+1-pbmog)
 p0mog
@@ -111,9 +111,9 @@ parameters {
   
 model {
   // Prioris
-    alpha ~ normal(0,10);
-    beta ~ gamma(0.001,0.001);
-    lambda ~ gamma(0.001,0.001);
+    alpha ~ normal(-1,10);
+    beta ~ gamma(0.1,0.1);
+    lambda ~ gamma(0.1,0.1);
   
     
   // Definição da verossimilhança manualmente

@@ -94,7 +94,7 @@ gen.cure.moig = function(n,a,b,l,p){
 }
 
 
-n = 1000
+n = 2000
 a0moig=-2;b0moig=10;l0moig = 2
 
 pgmoig= 1 - exp(2*a0moig/b0moig)
@@ -198,7 +198,7 @@ data_moig = list(N = dim(dados.moig)[1],
 
 ## Compilar e rodar o modelo
 moigfit = stan(file = 'cod_moig_stan.stan', data = data_moig, 
-              chains = 1, iter = 10000, warmup = 1000)
+              chains = 1, iter = 8000, warmup = 1000)
               
 #, init = list(init_values))
 
@@ -209,15 +209,49 @@ summary(moigfit)$summary
 
 moigfit_post_samples = extract(moigfit)
 
-
-plot(moigfit_post_samples$alpha, type='l')
+par(mfrow = c(1, 3))
+plot(moigfit_post_samples$alpha, type='l', ylab = "Alpha")
 abline(h=a0moig,col="red", lwd=2)
 
-plot(moigfit_post_samples$beta, type='l')
+plot(moigfit_post_samples$beta, type='l', ylab = "Beta")
 abline(h=b0moig,col="red", lwd=2)
 
-plot(moigfit_post_samples$lambda, type='l')
+plot(moigfit_post_samples$lambda, type='l', ylab = "Lambda")
 abline(h=l0moig,col="red", lwd=2)
+
+par(mfrow = c(1, 1))
+
+
+survival_object = Surv(dados.moig[,1], dados.moig[,2])
+km_fit = survfit(survival_object ~ 1)
+
+
+plot(km_fit, xlab = "Tempo", ylab = "Probabilidade de Sobrevivência",
+     main = "Curva de Kaplan-Meier", conf.int = F)
+
+
+t_grid = seq(0,100,by=0.01)
+st_t_grid_IG = Stmo_IG(t=t_grid,
+                    alpha=mean(moigfit_post_samples$alpha),
+                    beta=mean(moigfit_post_samples$beta),
+                    lambda=mean(moigfit_post_samples$lambda))
+
+fc_base_est_IG = 1 - exp(2*mean(moigfit_post_samples$alpha)/mean(moigfit_post_samples$beta))
+fc_est_IG = (mean(moigfit_post_samples$lambda)*fc_base_est_IG)/(mean(moigfit_post_samples$lambda)*fc_base_est_IG+1-fc_base_est_IG)
+
+lines(t_grid,st_t_grid_IG, lwd=2, col = "deeppink")
+abline(h=fc_est_IG, lwd=2, col='steelblue')
+
+text(x = 18, y = fc_est_IG-0.05, 
+     labels = bquote(hat(p) == .(round(fc_est_IG, 4))))
+
+
+# pgmoig= 1 - exp(2*a0moig/b0moig)
+# p0moig=(l0moig*pgmoig)/(l0moig*pgmoig+1-pgmoig); p0moig
+
+
+
+
 
 
 

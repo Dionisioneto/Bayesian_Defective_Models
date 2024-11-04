@@ -85,11 +85,16 @@ gen.cure.kig = function(n,a,b,k,ps,p){
   return(cbind(t2,delta))
 }
 
-n=2000
+
+# primeiro: Alpha = -0.2, Beta = 2, psi = 2.2, kappa = 2;
+# segundo: Alpha = -1, Beta = 10, psi = 1.4, kappa = 0.6.
+
+n=800
 a0kig=-0.2
 b0kig=2
 psi0kig=2.2
 k0kig=2
+
 
 pbkig = 1 - exp(2*a0kig/b0kig)
 p0kig = (1-(1-pbkig)^psi0kig)^k0kig; p0kig
@@ -124,7 +129,7 @@ abline(h=p0kig, lwd=2, col='steelblue')
 
 ## Portanto, no objeto dados.IG, temos os dados do tempo de falha e o indicador de censura.
 
-## Com o código feito, vamos estudar o estudo de prioris 
+# Com o código feito, vamos estudar o estudo de prioris
 # alpha ~ normal(-1,10);
 # beta ~ gamma(0.25,0.25);
 # kappa ~ gamma(0.25,0.25);
@@ -146,12 +151,12 @@ cod_KIG_stan = "
 
   model {
     // prioris
-  
+
   alpha ~ normal(-1,10);
-  beta ~ gamma(0.25,0.25);
-  kappa ~ gamma(0.25,0.25);
-  psi ~ gamma(0.25,0.25);
-    
+  beta ~ gamma(0.1,0.1);
+  kappa ~ gamma(0.1,0.1);
+  psi ~ gamma(0.01,0.1);
+
     for (i in 1:N) {
       real z1 = (-1 + alpha * time[i]) / sqrt(beta * time[i]);
       real z2 = (-1 - alpha * time[i]) / sqrt(beta * time[i]);
@@ -170,6 +175,51 @@ cod_KIG_stan = "
   }
 "
 
+## versão considerando os parametros na reta
+# cod_KIG_stan = "
+#   data {
+#     int<lower=0> N;                        // tamanho amostral
+#     vector[N] time;                        // tempo de falha observado
+#      array[N] int<lower=0, upper=1> delta;        // indicador do evento
+#   }
+# 
+#   parameters {
+#     real alpha;
+#     real log_beta;
+#     real log_psi;
+#     real log_kappa;
+#   }
+#   
+#   transformed parameters{
+#   real<lower=0> beta = exp(log_beta);  
+#   real<lower=0> psi = exp(log_psi);
+#   real<lower=0> kappa = exp(log_kappa);
+#   }
+# 
+#   model {
+#   alpha ~ normal(-1,4);
+#   log_beta ~ normal(0,4);
+#   log_kappa ~ normal(0,4);
+#   log_psi ~ normal(0,4);
+#     
+#     for (i in 1:N) {
+#       real z1 = (-1 + alpha * time[i]) / sqrt(beta * time[i]);
+#       real z2 = (-1 - alpha * time[i]) / sqrt(beta * time[i]);
+#       real phi1 = Phi(z1);
+#       real phi2 = Phi(z2);
+#       real exp_term = exp(2 * alpha / beta);
+# 
+#       // Verossimilhança do evento observado
+#       target += delta[i] * (log(kappa) + log(psi) - 0.5 * log(2 * beta * pi() * time[i]^3) - (1 - alpha * time[i])^2 / (2 * beta * time[i])
+#               + (psi - 1) * log(phi1 + exp_term * phi2));
+# 
+#       // Verossimilhança para censura
+#       target += delta[i] * (kappa - 1) * log(1 - (phi1 + exp_term * phi2)^psi);
+#       target += (1 - delta[i]) * kappa * log(1 - (phi1 + exp_term * phi2)^psi);
+#     }
+#   }
+# "
+
 
 
 ## Transcrever o código escrito para um file stan 
@@ -183,11 +233,11 @@ data_kig = list(N = dim(dados.kig)[1],
                delta = dados.kig[,2])
 
 ## chutes iniciais
-init_vals = list(list(alpha = -0.5, beta = 0.5, kappa = 0.5, psi = 0.5))
+#init_vals = list(list(alpha = -0.5, beta = 0.5, kappa = 0.5, psi = 0.5))
 
 ## Compilar e rodar o modelo
 kigfit = stan(file = 'cod_KIG_stan.stan', data = data_kig, 
-              chains = 1, iter = 2000, warmup = 200, init = init_vals)
+              chains = 1, iter = 2000, warmup = 200)
 
 a0kig;b0kig;psi0kig;k0kig
 summary(kigfit)$summary
@@ -195,18 +245,21 @@ summary(kigfit)$summary
 
 kigfit_post_samples = extract(kigfit)
 
-
-plot(kigfit_post_samples$alpha, type='l')
+par(mfrow=c(2,2))
+plot(kigfit_post_samples$alpha, type='l', ylab="Alpha")
 abline(h=a0kig,col="red", lwd=2)
 
-plot(kigfit_post_samples$beta, type='l')
+plot(kigfit_post_samples$beta, type='l', ylab="Beta")
 abline(h=b0kig,col="red", lwd=2)
 
-plot(kigfit_post_samples$psi, type='l')
+plot(kigfit_post_samples$psi, type='l', ylab="Psi")
 abline(h=psi0kig,col="red", lwd=2)
 
-plot(kigfit_post_samples$kappa, type='l')
+plot(kigfit_post_samples$kappa, type='l', ylab="Kappa")
 abline(h=k0kig,col="red", lwd=2)
+
+par(mfrow=c(1,1))
+
 
 ## verificar as correlações
 # acf(kigfit_post_samples$alpha)
@@ -235,7 +288,10 @@ p0kig_est = (1-(1-pbkig_est)^mean(kigfit_post_samples$psi))^mean(kigfit_post_sam
 
 
 lines(t_grid,st_t_est, lwd=2, col = "deeppink")
+
 abline(h=p0kig_est, lwd=2, col='steelblue')
+text(x = 40, y = p0kig_est- 0.05, 
+     labels = bquote(hat(p) == .(round(p0kig_est, 4))))
 
 
 

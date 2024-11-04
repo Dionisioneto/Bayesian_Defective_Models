@@ -8,15 +8,15 @@
 # Functions and packages
 # ----
 
-library(pacman)
-p_load(survival,rstan, R2jags)
+
+library(rstan)
 source("https://raw.githubusercontent.com/Dionisioneto/Bayesian_Defective_Models/refs/heads/master/kumaraswamy_defective/Kumaraswamy_funcoes_e_geracao.R")
 
 cod_kgtz_stan = "
   data{
   int<lower=0> N;
-  array[N] real time;
-  array[N] int<lower=0, upper=1> delta;
+  vector[N] time;
+  vector[N] delta;
   }
   
   parameters{
@@ -31,9 +31,9 @@ cod_kgtz_stan = "
   // prioris
   
   alpha ~ normal(-1,10);
-  beta ~ gamma(0.25,0.25);
-  kappa ~ gamma(0.25,0.25);
-  psi ~ gamma(0.25,0.25);
+  beta ~ gamma(0.1,0.1);
+  kappa ~ gamma(0.1,0.1);
+  psi ~ gamma(0.1,0.1);
   
   // Definição manual da função de verossimilhança
   for(i in 1:N){
@@ -62,28 +62,41 @@ bias = function(true,est){(est-true)/true*100}
 # segundo: Alpha = -1, Beta = 1, psi = 2, kappa = 2.
 
 
-n.replicas = 1000
+n.replicas = 500
 ## colunas: a média a posteriori, desvio padrão a posteriori, bias, coverage  
 ncols_mc = 4
 ncols_mc_medidas = 4
 n_amostral = c(50, 100, 1000, 10000)
-#n_amostral = 50
 
-kg_mc_alpha = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kg_mc_beta = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kg_mc_psi = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
-kg_mc_kappa = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
+## Tabelas
+
+kg_mc_alpha = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                    dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kg_mc_beta = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                   dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kg_mc_psi = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                  dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
+
+kg_mc_kappa = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                    dimnames = list(1:n.replicas,c("mean", "sd", "bias", "cp"),n_amostral))
 
 
 ## colunas: 4 valores do effective sample size (n_eff)
-kg_mc_eff = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
+kg_mc_eff = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                  dimnames = list(1:n.replicas,c("alpha", "beta", "psi","kappa", "lp"),n_amostral))
 
 ## colunas: 4 valores do Rhat
-kg_mc_Rhat = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)))
+kg_mc_Rhat = array(data=0, dim = c(n.replicas, ncols_mc, length(n_amostral)),
+                   dimnames = list(1:n.replicas,c("alpha", "beta", "psi","kappa", "lp"),n_amostral))
 
 ## Censura
 
 kg_mc_cens = array(data=0, dim = c(n.replicas, 1, length(n_amostral)))
+
+# primeiro: Alpha = -2, Beta = 10, psi = 1.2, kappa = 0.5;
+# segundo: Alpha = -1, Beta = 1, psi = 2, kappa = 2.
 
 
 a0kg=-2; b0kg=10; psi0kg=1.2; k0kg=0.5
@@ -92,19 +105,19 @@ pgkg = exp(b0kg/a0kg)
 p0kg = (1-(1-pgkg)^psi0kg)^k0kg; p0kg
 
 
-## cutes de valores inicias aleatórios
-# init_fun = function() {
-#   list(alpha = runif(1, -2.55,-2), 
-#        beta = runif(1, 9,11), 
-#        psi = runif(1, 1,2),
-#       kappa = runif(1, 0,1))
-# }
-
-init_val = list(list(alpha = -1, 
-               beta = 1, 
-               psi = 1,
-               kappa = 1))
-
+# ## cutes de valores inicias aleatórios
+# # init_fun = function() {
+# #   list(alpha = runif(1, -2.55,-2), 
+# #        beta = runif(1, 9,11), 
+# #        psi = runif(1, 1,2),
+# #       kappa = runif(1, 0,1))
+# # }
+# 
+# init_val = list(list(alpha = -1, 
+#                beta = 1, 
+#                psi = 1,
+#                kappa = 1))
+# 
 
 
 for(j in 1:length(n_amostral)){
@@ -152,20 +165,33 @@ for(j in 1:length(n_amostral)){
     
     ## salvando o percentual censura dos dados
     kg_mc_cens[i,1,j] = 1-(sum(dados.kg[,2])/n_amostral[j])
+    
+    
+    ## Salvando os resultados em um arquivo .csv
+    if(i==n.replicas){
+      write.csv2(kg_mc_alpha[,,j], file = paste("resumos/","kg_mc_alpha_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_beta[,,j], file = paste("resumos/","kg_mc_beta_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_psi[,,j], file = paste("resumos/","kg_mc_psi_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_kappa[,,j], file = paste("resumos/","kg_mc_kappa_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_eff[,,j], file = paste("resumos/","kg_mc_eff_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_Rhat[,,j], file = paste("resumos/","kg_mc_Rhat_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      write.csv2(kg_mc_cens[,,j], file = paste("resumos/","kg_mc_cens_", "rep_",n.replicas, "_n_",n_amostral[j], ".csv", sep=""))
+      
+    }
   }
 }
 
-kg_mc_alpha
-kg_mc_beta
-kg_mc_psi
-kg_mc_kappa
-
-kg_mc_eff
-kg_mc_Rhat
-
-a0kg; b0kg; psi0kg; k0kg
-colMeans(kg_mc_alpha)
-colMeans(kg_mc_beta)
-colMeans(kg_mc_psi)
-colMeans(kg_mc_kappa)
+# kg_mc_alpha
+# kg_mc_beta
+# kg_mc_psi
+# kg_mc_kappa
+# 
+# kg_mc_eff
+# kg_mc_Rhat
+# 
+# a0kg; b0kg; psi0kg; k0kg
+# colMeans(kg_mc_alpha)
+# colMeans(kg_mc_beta)
+# colMeans(kg_mc_psi)
+# colMeans(kg_mc_kappa)
 
